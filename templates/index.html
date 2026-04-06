@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrokersBloc — Medical Quote Builder</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bb-navy:   #0B1F3F;
+    --bb-blue:   #1A56A0;
+    --bb-accent: #2196F3;
+    --bb-light:  #E8F0FF;
+  }
+
+  body { background: #f4f6fb; font-family: 'Segoe UI', sans-serif; }
+
+  /* ── Header ── */
+  .bb-header {
+    background: var(--bb-navy);
+    padding: 18px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .bb-header .brand { color: #fff; font-size: 1.7rem; font-weight: 700; letter-spacing: 0.5px; }
+  .bb-header .site  { color: #8fa8cc; font-size: 0.9rem; }
+
+  /* ── Page body ── */
+  .page-body { max-width: 1100px; margin: 32px auto; padding: 0 16px 80px; }
+
+  /* ── Section cards ── */
+  .section-card {
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    margin-bottom: 24px; overflow: hidden;
+  }
+  .section-card .card-header {
+    background: var(--bb-navy); color: #fff;
+    font-weight: 600; font-size: 0.95rem;
+    padding: 12px 20px; letter-spacing: 0.3px;
+    cursor: pointer; user-select: none;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-card .card-header .badge-count {
+    background: var(--bb-blue); border-radius: 20px;
+    padding: 2px 10px; font-size: 0.78rem;
+  }
+  .section-card .card-body { padding: 20px 24px; }
+
+  /* ── Carrier tabs ── */
+  .carrier-tabs .nav-link {
+    color: var(--bb-navy); font-weight: 500; border-radius: 6px 6px 0 0;
+  }
+  .carrier-tabs .nav-link.active {
+    background: var(--bb-navy); color: #fff; border-color: var(--bb-navy);
+  }
+
+  /* ── Plan accordion inside each carrier ── */
+  .plan-accordion .accordion-button {
+    background: var(--bb-light); color: var(--bb-navy);
+    font-weight: 600; font-size: 0.9rem;
+  }
+  .plan-accordion .accordion-button:not(.collapsed) {
+    background: var(--bb-blue); color: #fff;
+    box-shadow: none;
+  }
+  .plan-accordion .accordion-button::after { filter: brightness(0); }
+  .plan-accordion .accordion-button:not(.collapsed)::after { filter: brightness(10); }
+
+  /* ── Field rows ── */
+  .field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px 16px;
+    margin-top: 8px;
+  }
+  .field-grid.rates-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  label { font-size: 0.82rem; color: #556; font-weight: 500; margin-bottom: 3px; }
+  .form-control, .form-select {
+    font-size: 0.9rem; border-radius: 6px;
+    border: 1px solid #cdd6e8;
+  }
+  .form-control:focus { border-color: var(--bb-blue); box-shadow: 0 0 0 3px rgba(26,86,160,.15); }
+
+  /* ── Section labels ── */
+  .subsection-label {
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--bb-blue);
+    margin: 16px 0 6px; border-bottom: 1px solid #e0e8f5; padding-bottom: 4px;
+  }
+
+  /* ── Submit bar ── */
+  .submit-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bb-navy); padding: 14px 32px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    box-shadow: 0 -2px 12px rgba(0,0,0,.2); z-index: 100;
+  }
+  .btn-generate {
+    background: #2ecc71; color: #fff; font-weight: 600;
+    padding: 10px 28px; border-radius: 6px; border: none; font-size: 1rem;
+  }
+  .btn-generate:hover { background: #27ae60; color: #fff; }
+  .submit-bar .hint { color: #8fa8cc; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="bb-header">
+  <span class="brand">BrokersBloc</span>
+  <span class="site">brokersbloc.com</span>
+</div>
+
+<div class="page-body">
+  <h4 class="mb-1" style="color:var(--bb-navy)">Medical Quote Comparison Builder</h4>
+  <p class="text-muted mb-4" style="font-size:.9rem">Fill in group details and up to 5 carriers (3 plans each). Click <strong>Generate Excel</strong> to download the populated comparison sheet.</p>
+
+  <form method="POST" action="/generate" id="quoteForm">
+
+    <!-- ── Group Info ── -->
+    <div class="section-card">
+      <div class="card-header" data-bs-toggle="collapse" data-bs-target="#groupInfo">
+        Group Information <span class="badge-count">Required</span>
+      </div>
+      <div class="collapse show" id="groupInfo">
+        <div class="card-body">
+          <div class="field-grid">
+            <div>
+              <label>Group / Company Name *</label>
+              <input type="text" class="form-control" name="group_name" placeholder="Liberty Restoration Group, Inc." required>
+            </div>
+            <div>
+              <label>Coverage Effective Date</label>
+              <input type="text" class="form-control" name="effective_date" placeholder="06/01/2026">
+            </div>
+            <div>
+              <label>Quote Date</label>
+              <input type="date" class="form-control" name="quote_date">
+            </div>
+          </div>
+
+          <div class="subsection-label">Enrollment Counts</div>
+          <div class="field-grid rates-grid">
+            <div>
+              <label>Employee Only</label>
+              <input type="number" class="form-control" name="enroll_ee" value="0" min="0">
+            </div>
+            <div>
+              <label>Employee + Spouse</label>
+              <input type="number" class="form-control" name="enroll_es" value="0" min="0">
+            </div>
+            <div>
+              <label>Employee + Child(ren)</label>
+              <input type="number" class="form-control" name="enroll_ec" value="0" min="0">
+            </div>
+            <div>
+              <label>Employee + Family</label>
+              <input type="number" class="form-control" name="enroll_ef" value="0" min="0">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Carrier Tabs ── -->
+    <div class="section-card">
+      <div class="card-header">
+        Carrier Plans <span class="badge-count">Up to 5 Carriers · 3 Plans Each</span>
+      </div>
+      <div class="card-body" style="padding-top:16px">
+        <ul class="nav nav-tabs carrier-tabs mb-3" id="carrierTabs">
+          {% for gi in range(5) %}
+          <li class="nav-item">
+            <a class="nav-link {% if gi==0 %}active{% endif %}"
+               data-bs-toggle="tab" href="#carrier{{gi}}">
+              Carrier {{ gi+1 }}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+
+        <div class="tab-content">
+          {% for gi in range(5) %}
+          <div class="tab-pane fade {% if gi==0 %}show active{% endif %}" id="carrier{{gi}}">
+
+            <!-- Carrier-level fields -->
+            <div class="field-grid mb-3">
+              <div>
+                <label>Carrier Name</label>
+                <input type="text" class="form-control" name="g{{gi}}_carrier"
+                       placeholder="e.g. Angle Health">
+              </div>
+              <div>
+                <label>Commissions</label>
+                <input type="text" class="form-control" name="g{{gi}}_commissions"
+                       placeholder="e.g. $35.00 PEPM or Flat 10%">
+              </div>
+            </div>
+
+            <!-- Plan accordion -->
+            <div class="accordion plan-accordion" id="plansG{{gi}}">
+              {% for pi in range(3) %}
+              <div class="accordion-item border-0 mb-2">
+                <h2 class="accordion-header">
+                  <button class="accordion-button {% if pi>0 %}collapsed{% endif %}"
+                          type="button" data-bs-toggle="collapse"
+                          data-bs-target="#g{{gi}}p{{pi}}">
+                    Plan {{ pi+1 }}
+                  </button>
+                </h2>
+                <div id="g{{gi}}p{{pi}}"
+                     class="accordion-collapse collapse {% if pi==0 %}show{% endif %}"
+                     data-bs-parent="#plansG{{gi}}">
+                  <div class="accordion-body" style="background:#fafcff; border-radius:0 0 8px 8px">
+
+                    <div class="field-grid">
+                      <div>
+                        <label>Plan Name</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_plan_name"
+                               placeholder="e.g. ANG HDHP 5000/5000">
+                      </div>
+                      <div>
+                        <label>Network</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_network"
+                               placeholder="e.g. Cigna OAP">
+                      </div>
+                    </div>
+
+                    <div class="subsection-label">In-Network Benefits</div>
+                    <div class="field-grid">
+                      <div>
+                        <label>Deductible (Ind / Fam)</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_deductible"
+                               placeholder="$5,000 / $10,000">
+                      </div>
+                      <div>
+                        <label>Coinsurance (Member / Plan)</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_coinsurance"
+                               placeholder="0% / 100%">
+                      </div>
+                      <div>
+                        <label>MOOP (Ind / Fam)</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_moop"
+                               placeholder="$7,000 / $14,000">
+                      </div>
+                      <div>
+                        <label>PCP Copay</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_pcp"
+                               placeholder="$25 copay or 0% AD">
+                      </div>
+                      <div>
+                        <label>Telehealth</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_telehealth"
+                               placeholder="$0 per visit">
+                      </div>
+                      <div>
+                        <label>Specialist Copay</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_specialist"
+                               placeholder="$75 copay or 0% AD">
+                      </div>
+                      <div>
+                        <label>Inpatient Hospitalization</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_inpatient"
+                               placeholder="20% AD">
+                      </div>
+                      <div>
+                        <label>Outpatient Facility</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_outpatient"
+                               placeholder="20% AD">
+                      </div>
+                      <div>
+                        <label>Emergency Room</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_er"
+                               placeholder="$300 AD or 0% AD">
+                      </div>
+                      <div>
+                        <label>Urgent Care</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_urgent_care"
+                               placeholder="$75 copay">
+                      </div>
+                      <div>
+                        <label>Laboratory</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_lab"
+                               placeholder="0% AD or $25 copay">
+                      </div>
+                      <div>
+                        <label>X-Ray</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_xray"
+                               placeholder="0% AD">
+                      </div>
+                      <div>
+                        <label>Imaging (CT, MRI, PET)</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_imaging"
+                               placeholder="0% AD">
+                      </div>
+                    </div>
+
+                    <div class="subsection-label">Out-of-Network</div>
+                    <div class="field-grid">
+                      <div>
+                        <label>OON Deductible (Ind / Fam)</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_oon_ded"
+                               placeholder="$10,000 / $20,000">
+                      </div>
+                      <div>
+                        <label>OON Cost Share</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_oon_cost"
+                               placeholder="50% / 50%">
+                      </div>
+                      <div>
+                        <label>OON MOOP (Ind / Fam)</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_oon_moop"
+                               placeholder="$20,000 / $40,000">
+                      </div>
+                    </div>
+
+                    <div class="subsection-label">Prescription Drugs</div>
+                    <div class="field-grid">
+                      <div>
+                        <label>Rx Deductible</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_rx_ded"
+                               placeholder="No Rx Deductible">
+                      </div>
+                      <div style="grid-column: span 2">
+                        <label>Rx Copays (Generic / Brand / Non-Pref / Specialty)</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_rx_copays"
+                               placeholder="$10 / $40 / $85 | Specialty: 0% AD">
+                      </div>
+                    </div>
+
+                    <div class="subsection-label">Monthly Rates</div>
+                    <div class="field-grid rates-grid">
+                      <div>
+                        <label>Employee Only</label>
+                        <div class="input-group">
+                          <span class="input-group-text">$</span>
+                          <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_rate_ee"
+                                 placeholder="0.00">
+                        </div>
+                      </div>
+                      <div>
+                        <label>Employee + Spouse</label>
+                        <div class="input-group">
+                          <span class="input-group-text">$</span>
+                          <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_rate_es"
+                                 placeholder="0.00">
+                        </div>
+                      </div>
+                      <div>
+                        <label>Employee + Child(ren)</label>
+                        <div class="input-group">
+                          <span class="input-group-text">$</span>
+                          <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_rate_ec"
+                                 placeholder="0.00">
+                        </div>
+                      </div>
+                      <div>
+                        <label>Employee + Family</label>
+                        <div class="input-group">
+                          <span class="input-group-text">$</span>
+                          <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_rate_ef"
+                                 placeholder="0.00">
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="subsection-label">Additional Info</div>
+                    <div class="field-grid">
+                      <div>
+                        <label>Rate Guarantee</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_rate_guarantee"
+                               placeholder="12 Months">
+                      </div>
+                      <div style="grid-column: span 2">
+                        <label>Carrier Comments / Notes</label>
+                        <input type="text" class="form-control" name="g{{gi}}_p{{pi}}_comments"
+                               placeholder="Level Funded | Network | PBM | Quote ID">
+                      </div>
+                    </div>
+
+                  </div><!-- accordion-body -->
+                </div>
+              </div><!-- accordion-item -->
+              {% endfor %}
+            </div><!-- plan-accordion -->
+
+          </div><!-- tab-pane -->
+          {% endfor %}
+        </div><!-- tab-content -->
+      </div>
+    </div>
+
+  </form>
+</div>
+
+<!-- Fixed submit bar -->
+<div class="submit-bar">
+  <span class="hint">Fills the BrokersBloc comparison template and downloads instantly</span>
+  <button type="submit" form="quoteForm" class="btn-generate">
+    ⬇ Generate Excel
+  </button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Set today's date as default quote date
+  document.querySelector('[name="quote_date"]').valueAsDate = new Date();
+</script>
+</body>
+</html>
