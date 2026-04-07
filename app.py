@@ -3,7 +3,8 @@ import os
 import json
 import datetime
 import traceback
-import pdfplumber
+import sys
+import pypdf
 import anthropic
 from flask import Flask, request, send_file, jsonify, render_template_string
 from openpyxl import load_workbook
@@ -201,11 +202,11 @@ async function submitForm() {
 
 def extract_pdf_text(file_bytes):
     text_pages = []
-    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        for page in pdf.pages:
-            t = page.extract_text()
-            if t:
-                text_pages.append(t)
+    reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+    for page in reader.pages:
+        t = page.extract_text()
+        if t:
+            text_pages.append(t)
     return "\n\n".join(text_pages)
 
 
@@ -363,6 +364,7 @@ def generate():
         return send_file(buf, as_attachment=True, download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
+        print(traceback.format_exc(), file=sys.stderr)
         return jsonify({"error": str(e)}), 500
 
 
