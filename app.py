@@ -200,40 +200,44 @@ def index():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    group_name     = request.form.get("group_name", "Quote")
-    effective_date = request.form.get("effective_date", "")
-    quote_date     = request.form.get("quote_date", str(datetime.date.today()))
-    plan_filter    = request.form.get("plan_filter", "all plans")
+    try:
+        group_name     = request.form.get("group_name", "Quote")
+        effective_date = request.form.get("effective_date", "")
+        quote_date     = request.form.get("quote_date", str(datetime.date.today()))
+        plan_filter    = request.form.get("plan_filter", "all plans")
 
-    enrollment = {
-        "ee": request.form.get("enroll_ee", "0"),
-        "es": request.form.get("enroll_es", "0"),
-        "ec": request.form.get("enroll_ec", "0"),
-        "ef": request.form.get("enroll_ef", "0"),
-    }
+        enrollment = {
+            "ee": request.form.get("enroll_ee", "0"),
+            "es": request.form.get("enroll_es", "0"),
+            "ec": request.form.get("enroll_ec", "0"),
+            "ef": request.form.get("enroll_ef", "0"),
+        }
 
-    carrier_groups = []
-    for gi in range(5):
-        pdf_file = request.files.get(f"pdf_{gi}")
-        if pdf_file and pdf_file.filename:
-            pdf_bytes  = pdf_file.read()
-            pdf_text   = extract_pdf_text(pdf_bytes)
-            group_data = parse_pdf_with_ai(pdf_text, plan_filter, enrollment)
-            carrier_groups.append(group_data)
-        else:
-            carrier_groups.append(None)
+        carrier_groups = []
+        for gi in range(5):
+            pdf_file = request.files.get(f"pdf_{gi}")
+            if pdf_file and pdf_file.filename:
+                pdf_bytes  = pdf_file.read()
+                pdf_text   = extract_pdf_text(pdf_bytes)
+                group_data = parse_pdf_with_ai(pdf_text, plan_filter, enrollment)
+                carrier_groups.append(group_data)
+            else:
+                carrier_groups.append(None)
 
-    if not any(carrier_groups):
-        return jsonify({"error": "Please upload at least one carrier PDF."}), 400
+        if not any(carrier_groups):
+            return jsonify({"error": "Please upload at least one carrier PDF."}), 400
 
-    buf = populate_excel(group_name, effective_date, quote_date,
-                         enrollment, carrier_groups)
+        buf = populate_excel(group_name, effective_date, quote_date,
+                             enrollment, carrier_groups)
 
-    safe_name = "".join(c for c in group_name if c.isalnum() or c in " _-").strip()
-    filename  = f"{safe_name or 'Medical_Quote'}_Comparison.xlsx"
+        safe_name = "".join(c for c in group_name if c.isalnum() or c in " _-").strip()
+        filename  = f"{safe_name or 'Medical_Quote'}_Comparison.xlsx"
 
-    return send_file(buf, as_attachment=True, download_name=filename,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        return send_file(buf, as_attachment=True, download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
