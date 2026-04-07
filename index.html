@@ -215,8 +215,17 @@ async function submitForm() {
     const response = await fetch('/generate', { method: 'POST', body: formData });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Server error');
+      // Handle both JSON and HTML error responses
+      const ct = response.headers.get('Content-Type') || '';
+      if (ct.includes('application/json')) {
+        const err = await response.json();
+        throw new Error(err.error || 'Server error');
+      } else {
+        const text = await response.text();
+        // Pull first meaningful line from HTML if present
+        const match = text.match(/<title>([^<]+)<\/title>/);
+        throw new Error(match ? match[1] : `Server error (${response.status})`);
+      }
     }
 
     // Trigger download

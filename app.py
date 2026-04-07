@@ -2,6 +2,7 @@ import io
 import os
 import json
 import datetime
+import traceback
 import pdfplumber
 import anthropic
 from flask import Flask, render_template, request, send_file, jsonify
@@ -10,6 +11,17 @@ from openpyxl.styles import Protection, Alignment
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32MB max upload
+
+
+# Always return JSON errors — never HTML
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({"error": str(e), "detail": traceback.format_exc()}), 500
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"error": "File too large. Max 32MB per PDF."}), 413
+
 
 TEMPLATE_FILE = "BrokersBloc_Medical_Template.xlsx"
 GROUP_COLS = [(8,9,10), (11,12,13), (14,15,16), (17,18,19), (20,21,22)]
@@ -53,7 +65,11 @@ def extract_pdf_text(file_bytes):
 
 
 def parse_pdf_with_ai(pdf_text, plan_filter, enrollment):
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY environment variable is not set.")
+
+    client = anthropic.Anthropic(api_key=api_key)
 
     system = """You are a health insurance data extraction specialist.
 You read carrier proposal PDFs and extract structured plan benefit data.
@@ -113,6 +129,7 @@ PDF TEXT:
     )
 
     raw = message.content[0].text.strip()
+    # Strip accidental markdown fences
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -145,7 +162,7 @@ def populate_excel(group_name, effective_date, quote_date, enrollment, carrier_g
         for col in [4, 5, 6]:
             try:
                 sv(ws, row, col, int(enrollment.get(key, 0)))
-            except ValueError:
+            except (ValueError, TypeError):
                 sv(ws, row, col, 0)
 
     for gi, group in enumerate(carrier_groups):
@@ -183,46 +200,40 @@ def index():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    try:
-        group_name     = request.form.get("group_name", "Quote")
-        effective_date = request.form.get("effective_date", "")
-        quote_date     = request.form.get("quote_date", str(datetime.date.today()))
-        plan_filter    = request.form.get("plan_filter", "all plans")
+    group_name     = request.form.get("group_name", "Quote")
+    effective_date = request.form.get("effective_date", "")
+    quote_date     = request.form.get("quote_date", str(datetime.date.today()))
+    plan_filter    = request.form.get("plan_filter", "all plans")
 
-        enrollment = {
-            "ee": request.form.get("enroll_ee", "0"),
-            "es": request.form.get("enroll_es", "0"),
-            "ec": request.form.get("enroll_ec", "0"),
-            "ef": request.form.get("enroll_ef", "0"),
-        }
+    enrollment = {
+        "ee": request.form.get("enroll_ee", "0"),
+        "es": request.form.get("enroll_es", "0"),
+        "ec": request.form.get("enroll_ec", "0"),
+        "ef": request.form.get("enroll_ef", "0"),
+    }
 
-        carrier_groups = []
-        for gi in range(5):
-            pdf_file = request.files.get(f"pdf_{gi}")
-            if pdf_file and pdf_file.filename:
-                pdf_bytes  = pdf_file.read()
-                pdf_text   = extract_pdf_text(pdf_bytes)
-                group_data = parse_pdf_with_ai(pdf_text, plan_filter, enrollment)
-                carrier_groups.append(group_data)
-            else:
-                carrier_groups.append(None)
+    carrier_groups = []
+    for gi in range(5):
+        pdf_file = request.files.get(f"pdf_{gi}")
+        if pdf_file and pdf_file.filename:
+            pdf_bytes  = pdf_file.read()
+            pdf_text   = extract_pdf_text(pdf_bytes)
+            group_data = parse_pdf_with_ai(pdf_text, plan_filter, enrollment)
+            carrier_groups.append(group_data)
+        else:
+            carrier_groups.append(None)
 
-        if not any(carrier_groups):
-            return jsonify({"error": "Please upload at least one carrier PDF."}), 400
+    if not any(carrier_groups):
+        return jsonify({"error": "Please upload at least one carrier PDF."}), 400
 
-        buf = populate_excel(group_name, effective_date, quote_date,
-                             enrollment, carrier_groups)
+    buf = populate_excel(group_name, effective_date, quote_date,
+                         enrollment, carrier_groups)
 
-        safe_name = "".join(c for c in group_name if c.isalnum() or c in " _-").strip()
-        filename  = f"{safe_name or 'Medical_Quote'}_Comparison.xlsx"
+    safe_name = "".join(c for c in group_name if c.isalnum() or c in " _-").strip()
+    filename  = f"{safe_name or 'Medical_Quote'}_Comparison.xlsx"
 
-        return send_file(buf, as_attachment=True, download_name=filename,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    except json.JSONDecodeError as e:
-        return jsonify({"error": f"AI could not parse the PDF response. Try again. ({e})"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return send_file(buf, as_attachment=True, download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 if __name__ == "__main__":
